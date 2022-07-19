@@ -5,24 +5,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
-
-var chanbuffLog chan logmessage
-
-var current_LOG_LEVEL LogLevel = DBGRM
-
-var isInit bool
 
 /* ****************************************************************************
 Description :
 - Constructs a type logmessage variable.
 - Dumps the same in the logmsg_buffered_channel
 
-Arguments   :
+Arguments:
 1> strcomponent string: Modulename.
 2> loglevelStr string:
 - There exist 4 loglevels: ERROR, WARNING, INFO, and DEBUG.
@@ -33,126 +26,73 @@ Return value: na
 
 Additional note: na
 **************************************************************************** */
-func Log(strcomponent string, loglevelStr string, msg string, args ...interface{}) {
+func Log(component string, logLevel LogLevel, message string, args ...interface{}) {
 	t := time.Now()
 	zonename, _ := t.In(time.Local).Zone()
 	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
 		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
 
-	pc, fn, line, _ := runtime.Caller(1)
+	pc, fn, line, _ := runtime.Caller(1) // TODO: handle OK
 
-	filePath := strings.Split(fn, srcBaseDir)
-	srcFile := srcBaseDir + filePath[len(filePath)-1]
+	// TODO: handle this later if Sourcefile: fn does not display absolute filepath
+	// filePath := strings.Split(fn, srcBaseDir)
+	// srcFile := srcBaseDir + filePath[len(filePath)-1]
 
-	msgPrefix := ""
-	if loglevelStr == "DBGRM" {
-		msgPrefix = "#### "
-	}
+	// TODO: return from here if input logLevel is less that set log level
 
-	logMsg := fmt.Sprintf("[%s] [%s] [%s] [%s: %d] [%s]:\n", strcomponent, msgTimeStamp, loglevelStr, srcFile, line, runtime.FuncForPC(pc).Name())
-	logMsg = fmt.Sprintf(logMsg+msg, args...)
-	logMsg = msgPrefix + logMsg + "\n"
-
-	logMessage := logmessage{
-		component: strcomponent,
-		logmsg:    logMsg,
+	logMessage := LogMessage{
+		TimeStamp:    msgTimeStamp,
+		Level:        logLevel.String(),
+		Component:    component,
+		Message:      message,
+		SourceFile:   fn,
+		LineNumber:   line,
+		FunctionName: runtime.FuncForPC(pc).Name(),
 	}
 
 	chanbuffLog <- logMessage
 }
 
-/* ****************************************************************************
-Description :
-- A go routine, invoked through Logger()
-- Waits onto buffered channel name chanbuffLog infinitely.
-- Extracts data from the channel, it's of type logmessage.
-- Dumps log into the file pointed by pServerLogFile.
-
-Arguments   : na for now.
-1> wg *sync.WaitGroup: waitgroup handler for conveying done status to the caller.
-2> doneChan chan bool: done channel to terminate logger thread.
-
-Return Value: na
-
-Additional note: na
-**************************************************************************** */
+// LogDispatcher infinitely waits on channel chanbuffLog,
+// extracts data from the channel and dumps log into the file pointed by pServerLogFile.
+// Arguments:
+// wg *sync.WaitGroup: waitgroup handler for conveying done status to the caller.
+// doneChan chan bool: done channel to terminate logger thread.
 func LogDispatcher(ploggerWG *sync.WaitGroup, doneChan chan bool) {
 	defer func() {
-		fmt.Println("logger exiting.")
+		fmt.Printf("[HEED] Logger Exiting.\n")
 		ploggerWG.Done()
 	}()
-
-	/* for {
-	    select {
-	        case logMsg := <-chanbuffLog: // pushes dummy logmessage onto the channel
-	            dumpServerLog(logMsg.logmsg)
-	    }
-	} */
 
 	runFlag := true
 	for runFlag {
 		select {
-		case logMsg, isOK := <-chanbuffLog: // pushes dummy logmessage onto the channel
+		case logMsg, isOK := <-chanbuffLog:
 			if !isOK {
 				runFlag = false
 				break
 			}
-			dumpServerLog(logMsg.logmsg)
+			dumpServerLog(logMsg)
 			break
 
 		case <-doneChan: // chanbuffLog needs to be closed. pull all the logs from the channel and dump them to file-system.
 			runFlag = false
-			dumpServerLog("[WARNING]:: logger exiting. breaking out on closed log message-queue.\nstarting to flush all the blocked logs.\n")
+			fmt.Printf("[HEED] Flushing log buffer.\n")
 			close(chanbuffLog)
 			for logMsg := range chanbuffLog {
-				dumpServerLog(logMsg.logmsg)
+				dumpServerLog(logMsg)
 			}
 			break
 		}
 	}
-
-	/* for runFlag {
-		select {
-			case <-doneChan:  // chanbuffLog needs to be closed. pull all the logs from the channel and dump them to file-system.
-				runFlag = false
-				dumpServerLog("[WARNING]:: logger exiting. breaking out on closed log message-queue.\nstarting to flush all the blocked logs.\n")
-				close(chanbuffLog)
-				for logMsg := range chanbuffLog {
-					dumpServerLog(logMsg.logmsg)
-				}
-				break
-			default:
-				break
-		}
-		select {
-			case logMsg, isOK := <-chanbuffLog: // pushes dummy logmessage onto the channel
-				if !isOK {
-					runFlag = false
-					break
-				}
-
-				dumpServerLog(logMsg.logmsg)
-				break
-			default:
-				break
-		}
-	} */
 }
 
-/* *****************************************************************************
-Description :
-- Initializes logger package data.
-- Creates a directory $PWD/logs if doesn't exist and creates first logfile
-underneath.
-
-Arguments   :
-1> isLoggerInit bool: true if logger data to be initialized. false in case logs are sent to stdout and not to any log file.
-
-4> logLevel: either of DEBUG, INFO, WARNING, ERROR.
-
-Return value:
-1> bool: True if successful, false otherwise.
-*/
+// Initializes logger.
+// Arguments:
+// logDir string: should be the directory where logs should be generated.
+// logLevel LogLevel: describes the severity of log. All logs whose severity is below this level will be discarded.
+// Return Values:
+// Returns true if logger was successfully initialized, false otherwise.
 func Init(logDir string, logLevel LogLevel) bool {
 	var err error
 
@@ -162,38 +102,39 @@ func Init(logDir string, logLevel LogLevel) bool {
 	}
 
 	// set log level
-	current_LOG_LEVEL = logLevel
+	current_LOG_LEVEL = logLevel // TODO: handle this later in Log and WebLog, if given level is less than current, do not log
 
 	// check if log dir exists
-	logDirInfo, err := os.Stat(logDir)
+	_, err = os.Stat(logDir)
 	if err != nil {
-		fmt.Printf("Error: Stat(%s): ", logDirInfo, err)
+		fmt.Printf("Error: Stat(%s): %s", logDir, err)
 		return false
 	}
 
+	// create buffered channel for logs
+	chanbuffLog = make(chan LogMessage, chanbuffLogCapacity)
+
+	// prepare for log rotation
 	logfileNameList = make([]string, log_MAX_FILES)
-
-	chanbuffLog = make(chan logmessage, chanbuffLogCapacity)
-
-	// TODO: check below code
 	logFile := filepath.Join(logDir, log_FILE_NAME_PREFIX) + ".1"
-	tmplogFile := filepath.Join(logDir, log_FILE_NAME_PREFIX)
+	tmpLogFile := filepath.Join(logDir, log_FILE_NAME_PREFIX)
 	dummyLogfile = logFile + ".dummy"
 
 	pServerLogFile, err = os.OpenFile(logFile, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Printf("error-4: %s\n", err.Error()) //Error: while creating logfile: %s, error: %s\n", logFile, err.Error())
+		fmt.Printf("Error: OpenFile(%s): %s\n", logFile, err)
 		return false
 	}
 
-	for i := int8(0); i < log_MAX_FILES; i++ {
-		logfileNameList[i] = fmt.Sprintf("%s.%d", tmplogFile, i+1)
+	for i := uint8(0); i < log_MAX_FILES; i++ {
+		logfileNameList[i] = fmt.Sprintf("%s.%d", tmpLogFile, i+1)
 	}
 
-	errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout)
+	errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout) // TODO: check what this does exactly
 	if errDup2 != nil {
-		fmt.Printf("Error: Failed to reuse STDOUT.\n")
+		fmt.Printf("Error: Dup2 - Failed to reuse STDOUT: %s\n", errDup2)
 	}
+
 	isInit = true
 	return true
 }

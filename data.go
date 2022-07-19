@@ -4,28 +4,19 @@ import (
 	"os"
 )
 
-// log levels
-const (
-	DBGRM LogLevel = iota
-	DEBUG
-	INFO
-	WARNING
-	ERROR
-)
-
-const chanbuffLogCapacity int = 10
-
-// log-file file handler.
+// active log file handler
 var pServerLogFile *os.File
 
+// log rotation
 var currentLogfileCnt uint8 = 1
 var logfileNameList []string
 var dummyLogfile string
 
-//var loggerWG sync.WaitGroup
+// buffered channel for logs
+var chanbuffLog chan LogMessage
 
-const log_MAX_FILES int8 = 10
-const log_FILE_NAME_PREFIX string = "server.log"
-const log_FILE_SIZE int64 = 20971520 // 20 MB
+// default log level setting
+var current_LOG_LEVEL LogLevel = DEBUG
 
-var srcBaseDir string
+// global flag to restrict reinitiation of logger
+var isInit bool

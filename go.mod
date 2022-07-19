@@ -1,3 +1,3 @@
-module github.com/sameeroak1110/logger
+module github.com/pakatx/logger
 
-go 1.17
+go 1.18

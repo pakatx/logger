@@ -31,7 +31,7 @@ func Log(component string, logLevel LogLevel, message string, args ...interface{
 	zonename, _ := t.In(time.Local).Zone()
 	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
 		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
-
+	// TODO: use t.Format(time.RFC3339Nano) in msgTimeStamp when log aggregator would be used
 	pc, fn, line, _ := runtime.Caller(1) // TODO: handle OK
 
 	// TODO: handle this later if Sourcefile: fn does not display absolute filepath

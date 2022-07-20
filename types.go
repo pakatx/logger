@@ -16,6 +16,8 @@ func (logLevel LogLevel) String() string {
 		return "INFO"
 	case DEBUG:
 		return "DEBUG"
+	case DBGRM:
+		return "DBGRM"
 	default:
 		return "invalidLogLevel"
 	}

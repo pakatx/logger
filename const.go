@@ -7,7 +7,8 @@ const (
 	ERROR                   // 2 - error events
 	WARNING                 // 3 - potenially harmful events
 	INFO                    // 4 - informational messages
-	DEBUG                   // 5 - debug messages - default
+	DEBUG                   // 5 - debug messages
+	DBGRM                   // 6 - debug messages for development
 )
 
 // buffered channel for logs

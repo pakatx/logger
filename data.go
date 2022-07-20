@@ -16,7 +16,7 @@ var dummyLogfile string
 var chanbuffLog chan LogMessage
 
 // default log level setting
-var current_LOG_LEVEL LogLevel = DEBUG
+var current_LOG_LEVEL LogLevel = DBGRM
 
 // global flag to restrict reinitiation of logger
 var isInit bool

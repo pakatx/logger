@@ -19,7 +19,8 @@ func dumpServerLog(logMessage LogMessage) {
 
 	// add newline to marshalled json before writing to file
 	jsonMessage = append(jsonMessage, "\n"...)
-	pServerLogFile.Write(jsonMessage)
+	jsonMessageStr := string(jsonMessage[:])
+	pServerLogFile.WriteString(jsonMessageStr)
 
 	fi, err := pServerLogFile.Stat()
 	if err != nil {

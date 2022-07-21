@@ -10,6 +10,34 @@ import (
 	"time"
 )
 
+func WebLog(component string, logLevel LogLevel, method string, clientIP string, path string, StatusCode int, latency string, message string) {
+	t := time.Now()
+	zonename, _ := t.In(time.Local).Zone()
+	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
+		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
+
+	// TODO: use t.Format(time.RFC3339Nano) in msgTimeStamp when log aggregator would be used
+
+	if current_LOG_LEVEL == OFF {
+		return
+	}
+
+	if logLevel <= current_LOG_LEVEL || logLevel == DBGRM {
+		logMessage := LogMessage{
+			TimeStamp:  msgTimeStamp,
+			Level:      logLevel.String(),
+			Component:  component,
+			StatusCode: StatusCode,
+			Latency:    latency,
+			ClientIP:   clientIP,
+			Method:     method,
+			Path:       path,
+			Message:    message,
+		}
+		chanbuffLog <- logMessage
+	}
+}
+
 // Log contructs a LogMessage and dumps the same in chanbuggLog.
 // The loglevels are incremental where DEBUG being the highest one and includes all log levels.
 // DBGRAM is always logged.

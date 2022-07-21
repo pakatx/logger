@@ -33,11 +33,11 @@ type LogMessage struct {
 	LineNumber   int    `json:"line_number,omitempty"`
 	FunctionName string `json:"function_name,omitempty"`
 	// webserver
-	StatusCode int    `json:"status_code,omitempty"`
-	Latency    string `json:"latency,omitempty"`
-	ClientIP   string `json:"client_ip,omitempty"`
 	Method     string `json:"method,omitempty"`
 	Path       string `json:"path,omitempty"`
+	ClientIP   string `json:"client_ip,omitempty"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Latency    string `json:"latency,omitempty"`
 	// common
 	Message string `json:"message,omitempty"`
 }

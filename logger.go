@@ -10,47 +10,40 @@ import (
 	"time"
 )
 
-/* ****************************************************************************
-Description :
-- Constructs a type logmessage variable.
-- Dumps the same in the logmsg_buffered_channel
-
-Arguments:
-1> strcomponent string: Modulename.
-2> loglevelStr string:
-- There exist 4 loglevels: ERROR, WARNING, INFO, and DEBUG.
-The loglevels are incremental where DEBUG being the highest one and
-includes all log levels.
-
-Return value: na
-
-Additional note: na
-**************************************************************************** */
+// Log contructs a LogMessage and dumps the same in chanbuggLog.
+// The loglevels are incremental where DEBUG being the highest one and includes all log levels.
+// DBGRAM is always logged.
+// Arguments:
+// component string: name of module / name of webserver
+// logLevel LogLevel: DBGRAM, DEBUG, INFO, ERROR, FATAL, OFF
 func Log(component string, logLevel LogLevel, message string, args ...interface{}) {
 	t := time.Now()
 	zonename, _ := t.In(time.Local).Zone()
 	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
 		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
+
 	// TODO: use t.Format(time.RFC3339Nano) in msgTimeStamp when log aggregator would be used
-	pc, fn, line, _ := runtime.Caller(1) // TODO: handle OK
 
-	// TODO: handle this later if Sourcefile: fn does not display absolute filepath
-	// filePath := strings.Split(fn, srcBaseDir)
-	// srcFile := srcBaseDir + filePath[len(filePath)-1]
+	// TODO: handle 4th return value i.e. OK? Its possible that called may not be able to detect
+	// program counter, file and line number as per documentation of runtime.Caller()
+	pc, fileName, lineNumber, _ := runtime.Caller(1)
 
-	// TODO: return from here if input logLevel is less that set log level
-
-	logMessage := LogMessage{
-		TimeStamp:    msgTimeStamp,
-		Level:        logLevel.String(),
-		Component:    component,
-		Message:      message,
-		SourceFile:   fn,
-		LineNumber:   line,
-		FunctionName: runtime.FuncForPC(pc).Name(),
+	if current_LOG_LEVEL == OFF {
+		return
 	}
 
-	chanbuffLog <- logMessage
+	if logLevel <= current_LOG_LEVEL || logLevel == DBGRM {
+		logMessage := LogMessage{
+			TimeStamp:    msgTimeStamp,
+			Level:        logLevel.String(),
+			Component:    component,
+			Message:      message,
+			SourceFile:   fileName,
+			LineNumber:   lineNumber,
+			FunctionName: runtime.FuncForPC(pc).Name(),
+		}
+		chanbuffLog <- logMessage
+	}
 }
 
 // LogDispatcher infinitely waits on channel chanbuffLog,

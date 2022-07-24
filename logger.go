@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"syscall"
+
+	//	"syscall"
 	"time"
 )
 
@@ -140,10 +141,10 @@ func Init(logDir string, logLevel LogLevel) bool {
 		logfileNameList[i] = fmt.Sprintf("%s.%d", tmpLogFile, i+1)
 	}
 
-	errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout)
-	if errDup2 != nil {
-		fmt.Printf("Error: Dup2 - Failed to reuse STDOUT: %s\n", errDup2)
-	}
+	// errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout)
+	// if errDup2 != nil {
+	// 	fmt.Printf("Error: Dup2 - Failed to reuse STDOUT: %s\n", errDup2)
+	// }
 
 	isInit = true
 	return true

@@ -130,7 +130,7 @@ func Init(logDir string, logLevel LogLevel) bool {
 	tmpLogFile := filepath.Join(logDir, log_FILE_NAME_PREFIX)
 	dummyLogfile = logFile + ".dummy"
 
-	pServerLogFile, err = os.OpenFile(logFile, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
+	pServerLogFile, err = os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error: OpenFile(%s): %s\n", logFile, err)
 		return false

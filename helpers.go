@@ -1,26 +1,25 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 )
 
-// dumpServerLog dumps logMessage into logfile, calls handleLogRotate if size of
-// log file exceeds limit.
+// dumpServerLog dumps logMessage into local files and forwards to log aggregator
+// calls handleLogRotate if size of log file exceeds limit.
 func dumpServerLog(logMessage LogMessage) {
-	// TODO: handle below case gracefully
 	if pServerLogFile == nil {
-		fmt.Printf("error-5\n") // nil file handler
-		os.Exit(1)
+		logMessage.Message = "dumpServerLog Fatal: Corrupt log file handler; Original Message: " + logMessage.Message
+		logMessage.Level = "FATAL"
 	}
 
-	jsonMessage, _ := json.Marshal(logMessage) // TODO: ignoring error, check later
+	// Forward to Log Aggregator
+	// jsonMessage, _ := json.Marshal(logMessage)
+	// jsonMessageStr := string(jsonMessage[:])
+	// pServerLogFile.WriteString(jsonMessageStr)
+	// TODO: Sameer Oak: Invoke Log Aggregator API here
 
-	// add newline to marshalled json before writing to file
-	jsonMessage = append(jsonMessage, "\n"...)
-	jsonMessageStr := string(jsonMessage[:])
-	pServerLogFile.WriteString(jsonMessageStr)
+	pServerLogFile.WriteString(logMessage.String())
 
 	fi, err := pServerLogFile.Stat()
 	if err != nil {

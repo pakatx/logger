@@ -13,10 +13,10 @@ var logfileNameList []string
 var dummyLogfile string
 
 // buffered channel for logs
-var chanbuffLog chan LogMessage
-
-// default log level setting
-var current_LOG_LEVEL LogLevel = DBGRM
+var chanBuffLog chan LogMessage
 
 // global flag to restrict reinitiation of logger
 var isInit bool
+
+// configured log level; set to DEBUG by default
+var configuredLogLevel LogLevel = DEBUG

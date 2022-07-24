@@ -10,21 +10,46 @@ import (
 	"time"
 )
 
-func WebLog(component string, logLevel LogLevel, method string, clientIP string, path string, StatusCode int, latency string, message string) {
-	t := time.Now()
-	zonename, _ := t.In(time.Local).Zone()
-	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
-		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
+// Log contructs a LogMessage and dumps the same in chanbuggLog.
+// The loglevels are incremental where DEBUG being the highest one and includes all log levels.
+// DBGRAM is always logged.
+// Arguments:
+// component string: name of module / name of webserver
+// logLevel LogLevel: DBGRAM, DEBUG, INFO, WARNING, ERROR, FATAL
+// message string: format string
+// args interface: varargs for message
+func Log(component string, logLevel LogLevel, message string, args ...interface{}) {
 
-	// TODO: use t.Format(time.RFC3339Nano) in msgTimeStamp when log aggregator would be used
+	programCounter, fileName, lineNumber, _ := runtime.Caller(1)
 
-	if current_LOG_LEVEL == OFF {
-		return
-	}
-
-	if logLevel <= current_LOG_LEVEL || logLevel == DBGRM {
+	if logLevel <= configuredLogLevel || logLevel == DBGRM {
 		logMessage := LogMessage{
-			TimeStamp:  msgTimeStamp,
+			TimeStamp:    time.Now(),
+			Level:        logLevel.String(),
+			Component:    component,
+			Message:      message,
+			SourceFile:   fileName,
+			LineNumber:   lineNumber,
+			FunctionName: runtime.FuncForPC(programCounter).Name(),
+		}
+		chanBuffLog <- logMessage
+	}
+}
+
+// WebLog contructs a LogMessage and dumps the same in chanBuffLog.
+// Arguments:
+// component string: name of module / name of webserver
+// logLevel LogLevel: DBGRAM, DEBUG, INFO, ERROR, FATAL
+// method string: HTTP method e.g. GET, POST, PUT, OPTIONS
+// clientIP string: Client IP Address
+// path string: URL path
+// StatusCode int: HTTP Status Code
+// latency time.Time: time required for handling the reques
+// message string: log message
+func WebLog(component string, logLevel LogLevel, method string, clientIP string, path string, StatusCode int, latency time.Duration, message string) {
+	if logLevel <= configuredLogLevel || logLevel == DBGRM {
+		logMessage := LogMessage{
+			TimeStamp:  time.Now(),
 			Level:      logLevel.String(),
 			Component:  component,
 			StatusCode: StatusCode,
@@ -34,47 +59,11 @@ func WebLog(component string, logLevel LogLevel, method string, clientIP string,
 			Path:       path,
 			Message:    message,
 		}
-		chanbuffLog <- logMessage
+		chanBuffLog <- logMessage
 	}
 }
 
-// Log contructs a LogMessage and dumps the same in chanbuggLog.
-// The loglevels are incremental where DEBUG being the highest one and includes all log levels.
-// DBGRAM is always logged.
-// Arguments:
-// component string: name of module / name of webserver
-// logLevel LogLevel: DBGRAM, DEBUG, INFO, ERROR, FATAL, OFF
-func Log(component string, logLevel LogLevel, message string, args ...interface{}) {
-	t := time.Now()
-	zonename, _ := t.In(time.Local).Zone()
-	msgTimeStamp := fmt.Sprintf("%02d-%02d-%d:%02d%02d%02d-%06d-%s",
-		t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), zonename)
-
-	// TODO: use t.Format(time.RFC3339Nano) in msgTimeStamp when log aggregator would be used
-
-	// TODO: handle 4th return value i.e. OK? Its possible that called may not be able to detect
-	// program counter, file and line number as per documentation of runtime.Caller()
-	pc, fileName, lineNumber, _ := runtime.Caller(1)
-
-	if current_LOG_LEVEL == OFF {
-		return
-	}
-
-	if logLevel <= current_LOG_LEVEL || logLevel == DBGRM {
-		logMessage := LogMessage{
-			TimeStamp:    msgTimeStamp,
-			Level:        logLevel.String(),
-			Component:    component,
-			Message:      message,
-			SourceFile:   fileName,
-			LineNumber:   lineNumber,
-			FunctionName: runtime.FuncForPC(pc).Name(),
-		}
-		chanbuffLog <- logMessage
-	}
-}
-
-// LogDispatcher infinitely waits on channel chanbuffLog,
+// LogDispatcher infinitely waits on channel chanBuffLog,
 // extracts data from the channel and dumps log into the file pointed by pServerLogFile.
 // Arguments:
 // wg *sync.WaitGroup: waitgroup handler for conveying done status to the caller.
@@ -88,7 +77,7 @@ func LogDispatcher(ploggerWG *sync.WaitGroup, doneChan chan bool) {
 	runFlag := true
 	for runFlag {
 		select {
-		case logMsg, isOK := <-chanbuffLog:
+		case logMsg, isOK := <-chanBuffLog:
 			if !isOK {
 				runFlag = false
 				break
@@ -96,11 +85,11 @@ func LogDispatcher(ploggerWG *sync.WaitGroup, doneChan chan bool) {
 			dumpServerLog(logMsg)
 			break
 
-		case <-doneChan: // chanbuffLog needs to be closed. pull all the logs from the channel and dump them to file-system.
+		case <-doneChan: // chanBuffLog needs to be closed. pull all the logs from the channel and dump them to file-system.
 			runFlag = false
 			fmt.Printf("[HEED] Flushing log buffer.\n")
-			close(chanbuffLog)
-			for logMsg := range chanbuffLog {
+			close(chanBuffLog)
+			for logMsg := range chanBuffLog {
 				dumpServerLog(logMsg)
 			}
 			break
@@ -123,7 +112,7 @@ func Init(logDir string, logLevel LogLevel) bool {
 	}
 
 	// set log level
-	current_LOG_LEVEL = logLevel // TODO: handle this later in Log and WebLog, if given level is less than current, do not log
+	configuredLogLevel = logLevel
 
 	// check if log dir exists
 	_, err = os.Stat(logDir)
@@ -133,7 +122,7 @@ func Init(logDir string, logLevel LogLevel) bool {
 	}
 
 	// create buffered channel for logs
-	chanbuffLog = make(chan LogMessage, chanbuffLogCapacity)
+	chanBuffLog = make(chan LogMessage, chanbuffLogCapacity)
 
 	// prepare for log rotation
 	logfileNameList = make([]string, log_MAX_FILES)
@@ -151,7 +140,7 @@ func Init(logDir string, logLevel LogLevel) bool {
 		logfileNameList[i] = fmt.Sprintf("%s.%d", tmpLogFile, i+1)
 	}
 
-	errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout) // TODO: check what this does exactly
+	errDup2 := syscall.Dup2(int(pServerLogFile.Fd()), syscall.Stdout)
 	if errDup2 != nil {
 		fmt.Printf("Error: Dup2 - Failed to reuse STDOUT: %s\n", errDup2)
 	}
